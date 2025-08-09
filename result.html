@@ -62,71 +62,68 @@
   </div>
 
   <script>
-  // Daten anzeigen
-  let daten = JSON.parse(localStorage.getItem("kosten")) || [];
-  let ausgabeDiv = document.getElementById("ausgabe");
+    let daten = JSON.parse(localStorage.getItem("kosten")) || [];
+    let ausgabeDiv = document.getElementById("ausgabe");
 
-  if (daten.length === 0) {
-    ausgabeDiv.innerHTML = "<p class='text-center text-gray-500'>Keine Einträge vorhanden.</p>";
-  } else {
-    let gesamt = daten.reduce((sum, e) => sum + e.wert, 0);
-    let teilnehmer = [...new Set(daten.map(e => e.name))];
-    let proPerson = gesamt / teilnehmer.length;
+    if (daten.length === 0) {
+      ausgabeDiv.innerHTML = "<p class='text-center text-gray-500'>Keine Einträge vorhanden.</p>";
+    } else {
+    
+      let teilnehmer = [...new Set(daten.map(e => e.name))];
 
-    // Summe je Teilnehmer
-    let zahlungen = {};
-    teilnehmer.forEach(t => zahlungen[t] = 0);
-    daten.forEach(e => {
-      zahlungen[e.name] += e.wert;
-    });
 
-    // Verrechnung: Restbetrag pro Teilnehmer (proPerson - gezahlt)
-    // positiv = muss noch zahlen, negativ = bekommt zurück
-    let restBetrag = {};
-    teilnehmer.forEach(t => {
-      restBetrag[t] = proPerson - zahlungen[t];
-    });
+      let gesamt = daten.reduce((sum, e) => sum + e.wert, 0);
 
-    let html = `
-      <div class="text-center">
-        <h2 class="text-xl font-semibold">Gesamtkosten: <span class="text-green-600">${gesamt.toFixed(2)} €</span></h2>
-        <h3 class="text-lg">Pro Person: <span class="text-blue-600">${proPerson.toFixed(2)} €</span></h3>
-        <p class="text-gray-600">Teilnehmer: ${teilnehmer.join(", ")}</p>
-      </div>
-      <ul class="divide-y divide-gray-200">
-    `;
-    daten.forEach(e => {
-      html += `<li class="py-2 flex justify-between">
-                <span><strong>${e.name}</strong> (${e.grund})</span>
-                <span class="text-gray-800">${e.wert.toFixed(2)} €</span>
-              </li>`;
-    });
-    html += "</ul>";
 
-    // Kleine Auflistung, wer noch zahlen muss oder zurückbekommt
-    html += `<div class="mt-6 text-center">
-               <h3 class="text-lg font-semibold mb-2">Verrechnung</h3>
-               <ul class="divide-y divide-gray-300 max-w-sm mx-auto">
-    `;
-    teilnehmer.forEach(t => {
-      let wert = restBetrag[t];
-      let text, cssClass;
-      if (wert > 0.01) {
-        text = `muss noch <strong>${wert.toFixed(2)} €</strong> zahlen`;
-        cssClass = "text-red-600";
-      } else if (wert < -0.01) {
-        text = `bekommt <strong>${(-wert).toFixed(2)} €</strong> zurück`;
-        cssClass = "text-green-600";
-      } else {
-        text = `ist ausgeglichen`;
-        cssClass = "text-gray-700";
-      }
-      html += `<li class="py-1 ${cssClass}"><strong>${t}</strong> ${text}</li>`;
-    });
-    html += "</ul></div>";
+      let anteil = gesamt / teilnehmer.length;
 
-    ausgabeDiv.innerHTML = html;
-  }
+
+      let zahlungen = {};
+      teilnehmer.forEach(name => {
+        zahlungen[name] = 0;
+      });
+      daten.forEach(e => {
+        zahlungen[e.name] += e.wert;
+      });
+
+      let html = `
+        <div class="text-center">
+          <h2 class="text-xl font-semibold">Gesamtkosten: <span class="text-green-600">${gesamt.toFixed(2)} €</span></h2>
+          <h3 class="text-lg">Pro Person: <span class="text-blue-600">${anteil.toFixed(2)} €</span></h3>
+          <p class="text-gray-600">Teilnehmer: ${teilnehmer.join(", ")}</p>
+        </div>
+        <ul class="divide-y divide-gray-200">
+      `;
+      daten.forEach(e => {
+        html += `<li class="py-2 flex justify-between">
+                  <span><strong>${e.name}</strong> (${e.grund})</span>
+                  <span class="text-gray-800">${e.wert.toFixed(2)} €</span>
+                </li>`;
+      });
+      html += "</ul>";
+
+      html += `<h3 class="mt-6 font-semibold text-center">Verrechnung:</h3><ul class="divide-y divide-gray-200">`;
+      teilnehmer.forEach(name => {
+        let offen = anteil - zahlungen[name];
+        let text;
+        let colorClass;
+
+        if (offen > 0) {
+          text = `muss noch zahlen: ${offen.toFixed(2)} €`;
+          colorClass = "text-red-600";
+        } else if (offen < 0) {
+          text = `bekommt zurück: ${(-offen).toFixed(2)} €`;
+          colorClass = "text-green-600";
+        } else {
+          text = `ist ausgeglichen`;
+          colorClass = "text-black";
+        }
+        html += `<li class="py-2 flex justify-between"><span><strong>${name}</strong></span><span class="${colorClass}">${text}</span></li>`;
+      });
+      html += "</ul>";
+
+      ausgabeDiv.innerHTML = html;
+    }
 
     // drag bouncing for circles
     const circles = document.querySelectorAll('.circle');
