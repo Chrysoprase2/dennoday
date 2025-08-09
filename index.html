@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meine GitHub Pages Webseite</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #9a8c98;
+            color: #333;
+            text-align: center;
+            overflow: hidden;
+            user-select: none;
+            position: relative;
+            height: 100vh;
+        }
+        h1 {
+            color: #007acc;
+            position: relative;
+            z-index: 10;
+        }
+        p {
+            font-size: 1.2em;
+            position: relative;
+            z-index: 10;
+        }
+        button {
+            background-color: #007acc;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            font-size: 1em;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 20px;
+            position: relative;
+            z-index: 10;
+        }
+        button:hover {
+            background-color: #005f99;
+        }
+        footer {
+            margin-top: 50px;
+            font-size: 0.9em;
+            color: #777;
+            position: relative;
+            z-index: 10;
+        }
+        .circle {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: silver;
+            position: fixed;
+            cursor: grab;
+            z-index: 1;
+            user-select: none;
+            touch-action: none;
+            box-shadow: 0 0 15px rgba(52,144,220,0.3);
+            transition: background-color 0.3s ease;
+        }
+        .circle.active {
+            background-color: white;
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body>
+    <h1>Index test Dennoday</h1>
+
+    <button onclick="location.href='input.html'">Zur Input-Seite</button>
+
+    <footer>
+        &copy; 2025 DBS - D
+    </footer>
+
+    <!-- Kreise an Ecken -->
+    <div class="circle" style="top: 50px; left: 50px;"></div>
+    <div class="circle" style="top: 50px; right: 50px;"></div>
+    <div class="circle" style="bottom: 50px; left: 50px;"></div>
+    <div class="circle" style="bottom: 50px; right: 50px;"></div>
+
+    <script>
+    const circles = document.querySelectorAll('.circle');
+
+    circles.forEach((circle, index) => {
+      let isDragging = false;
+      let startX, startY;
+      let origX, origY;
+      let lastX, lastY;
+      let velocityX = 0;
+      let velocityY = 0;
+      let animationFrame;
+
+      // Initialposition holen
+      function getInitialPos(elem) {
+        const rect = elem.getBoundingClientRect();
+        return {x: rect.left, y: rect.top};
+      }
+
+      const basePos = getInitialPos(circle);
+
+      circle.style.left = basePos.x + 'px';
+      circle.style.top = basePos.y + 'px';
+
+      circle.addEventListener('mousedown', dragStart);
+      circle.addEventListener('touchstart', dragStart, {passive: false});
+
+      function dragStart(e) {
+        e.preventDefault();
+        isDragging = true;
+        circle.classList.add('active');
+        
+        const rect = circle.getBoundingClientRect();
+        origX = rect.left;
+        origY = rect.top;
+
+        if(e.type === 'mousedown') {
+          startX = e.clientX;
+          startY = e.clientY;
+          window.addEventListener('mousemove', dragging);
+          window.addEventListener('mouseup', dragEnd);
+        } else if(e.type === 'touchstart') {
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+          window.addEventListener('touchmove', dragging, {passive:false});
+          window.addEventListener('touchend', dragEnd);
+        }
+        
+        lastX = startX;
+        lastY = startY;
+        velocityX = 0;
+        velocityY = 0;
+
+        if(animationFrame) {
+          cancelAnimationFrame(animationFrame);
+        }
+      }
+
+      function dragging(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+
+        let clientX, clientY;
+        if(e.type === 'mousemove') {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        } else if(e.type === 'touchmove') {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        }
+
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+
+        const newLeft = origX + dx;
+        const newTop = origY + dy;
+
+        circle.style.left = newLeft + 'px';
+        circle.style.top = newTop + 'px';
+
+        velocityX = clientX - lastX;
+        velocityY = clientY - lastY;
+        lastX = clientX;
+        lastY = clientY;
+      }
+
+      function dragEnd(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        circle.classList.remove('active');
+
+        window.removeEventListener('mousemove', dragging);
+        window.removeEventListener('mouseup', dragEnd);
+        window.removeEventListener('touchmove', dragging);
+        window.removeEventListener('touchend', dragEnd);
+
+        bounce(velocityX, velocityY);
+      }
+
+      function bounce(vx, vy) {
+        let posX = parseFloat(circle.style.left);
+        let posY = parseFloat(circle.style.top);
+
+        let amplitudeX = vx * 5;
+        let amplitudeY = vy * 5;
+
+        let time = 0;
+        const damping = 0.9;
+        const orbitRadius = 15;
+
+        function animate() {
+          const decay = Math.pow(damping, time);
+
+          const deltaX = amplitudeX * Math.cos(time * 0.3) * decay;
+          const deltaY = amplitudeY * Math.cos(time * 0.3) * decay;
+
+          const orbitAngle = time * 0.05;
+          const orbitOffsetX = orbitRadius * Math.cos(orbitAngle);
+          const orbitOffsetY = orbitRadius * Math.sin(orbitAngle);
+
+          circle.style.left = (posX + deltaX + orbitOffsetX) + 'px';
+          circle.style.top = (posY + deltaY + orbitOffsetY) + 'px';
+
+          time++;
+          animationFrame = requestAnimationFrame(animate);
+        }
+
+        animate();
+      }
+
+      // Starte Orbit direkt mit Phasenversatz (90° = π/2 pro Kreis)
+      (function startOrbit() {
+        let time = 0;
+        const orbitRadius = 15;
+        const phaseOffset = (Math.PI / 2) * index;
+        animationFrame = requestAnimationFrame(function orbitAnim() {
+          if (isDragging) {
+            animationFrame = requestAnimationFrame(orbitAnim);
+            return;
+          }
+          const orbitAngle = time * 0.05 + phaseOffset;
+          const orbitOffsetX = orbitRadius * Math.cos(orbitAngle);
+          const orbitOffsetY = orbitRadius * Math.sin(orbitAngle);
+          circle.style.left = (basePos.x + orbitOffsetX) + 'px';
+          circle.style.top = (basePos.y + orbitOffsetY) + 'px';
+          time++;
+          animationFrame = requestAnimationFrame(orbitAnim);
+        });
+      })();
+
+    });
+    </script>
+</body>
+</html>
