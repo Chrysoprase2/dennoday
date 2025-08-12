@@ -40,64 +40,112 @@
 <div class="circle" style="bottom: 50px; right: 50px;"></div>
 
 <script>
-const circles = document.querySelectorAll('.circle');
+const circles = Array.from(document.querySelectorAll('.circle'));
+const circleDiameter = 150;
 
-circles.forEach((circle, index) => {
-  let isDragging = false;
-  let startX, startY;
-  let origX, origY;
-  let lastX, lastY;
-  let velocityX = 0;
-  let velocityY = 0;
-  let animationFrame;
-  let basePos = {x: 0, y: 0};
+function isSpaceFree(x, y) {
+  if (x < 0 || y < 0 || x > window.innerWidth - circleDiameter || y > window.innerHeight - circleDiameter) return false;
+  for (let c of circleObjs) {
+    const dx = x - c.posX;
+    const dy = y - c.posY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < circleDiameter) return false;
+  }
+  return true;
+}
 
-  function getInitialPos(elem) {
-    const rect = elem.getBoundingClientRect();
+function spawnAround(circle) {
+  const centerX = circle.posX + circleDiameter / 2;
+  const centerY = circle.posY + circleDiameter / 2;
+  const spawnDistance = circleDiameter * 1.5;
+  const angles = [0, 120, 240];
+  for (let angleDeg of angles) {
+    const angleRad = angleDeg * Math.PI / 180;
+    const x = centerX + spawnDistance * Math.cos(angleRad) - circleDiameter / 2;
+    const y = centerY + spawnDistance * Math.sin(angleRad) - circleDiameter / 2;
+    if (isSpaceFree(x, y)) {
+      const newElem = document.createElement('div');
+      newElem.classList.add('circle');
+      newElem.style.left = x + 'px';
+      newElem.style.top = y + 'px';
+      document.body.appendChild(newElem);
+      const newCircle = new Circle(newElem, circleObjs.length);
+      circleObjs.push(newCircle);
+    }
+  }
+}
+
+class Circle {
+  constructor(elem, index) {
+    this.elem = elem;
+    this.index = index;
+    this.isDragging = false;
+    this.velocityX = 0;
+    this.velocityY = 0;
+    this.basePos = this.getInitialPos();
+    this.posX = this.basePos.x;
+    this.posY = this.basePos.y;
+    this.animFrame = null;
+    this.lastX = 0;
+    this.lastY = 0;
+    this.startX = 0;
+    this.startY = 0;
+    this.origX = 0;
+    this.origY = 0;
+    this.orbitTime = 0;
+    this.hasSpawnedThisBounce = false;
+
+    this.elem.style.left = this.posX + 'px';
+    this.elem.style.top = this.posY + 'px';
+
+    this._draggingHandler = this.dragging.bind(this);
+    this._dragEndHandler = this.dragEnd.bind(this);
+
+    this.elem.addEventListener('mousedown', this.dragStart.bind(this));
+    this.elem.addEventListener('touchstart', this.dragStart.bind(this), {passive:false});
+
+    this.startOrbit();
+  }
+
+  getInitialPos() {
+    const rect = this.elem.getBoundingClientRect();
     return {x: rect.left, y: rect.top};
   }
 
-  basePos = getInitialPos(circle);
-
-  circle.style.left = basePos.x + 'px';
-  circle.style.top = basePos.y + 'px';
-
-  circle.addEventListener('mousedown', dragStart);
-  circle.addEventListener('touchstart', dragStart, {passive: false});
-
-  function dragStart(e) {
+  dragStart(e) {
     e.preventDefault();
-    isDragging = true;
-    circle.classList.add('active');
+    this.isDragging = true;
+    this.elem.classList.add('active');
 
-    const rect = circle.getBoundingClientRect();
-    origX = rect.left;
-    origY = rect.top;
+    if (this.animFrame) {
+      cancelAnimationFrame(this.animFrame);
+      this.animFrame = null;
+    }
+
+    const rect = this.elem.getBoundingClientRect();
+    this.origX = rect.left;
+    this.origY = rect.top;
 
     if (e.type === 'mousedown') {
-      startX = e.clientX;
-      startY = e.clientY;
-      window.addEventListener('mousemove', dragging);
-      window.addEventListener('mouseup', dragEnd);
+      this.startX = e.clientX;
+      this.startY = e.clientY;
+      window.addEventListener('mousemove', this._draggingHandler);
+      window.addEventListener('mouseup', this._dragEndHandler);
     } else if (e.type === 'touchstart') {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      window.addEventListener('touchmove', dragging, {passive:false});
-      window.addEventListener('touchend', dragEnd);
+      this.startX = e.touches[0].clientX;
+      this.startY = e.touches[0].clientY;
+      window.addEventListener('touchmove', this._draggingHandler, {passive:false});
+      window.addEventListener('touchend', this._dragEndHandler);
     }
 
-    lastX = startX;
-    lastY = startY;
-    velocityX = 0;
-    velocityY = 0;
-
-    if (animationFrame) {
-      cancelAnimationFrame(animationFrame);
-    }
+    this.lastX = this.startX;
+    this.lastY = this.startY;
+    this.velocityX = 0;
+    this.velocityY = 0;
   }
 
-  function dragging(e) {
-    if (!isDragging) return;
+  dragging(e) {
+    if (!this.isDragging) return;
     e.preventDefault();
 
     let clientX, clientY;
@@ -109,118 +157,190 @@ circles.forEach((circle, index) => {
       clientY = e.touches[0].clientY;
     }
 
-    const dx = clientX - startX;
-    const dy = clientY - startY;
+    const dx = clientX - this.startX;
+    const dy = clientY - this.startY;
 
-    const newLeft = origX + dx;
-    const newTop = origY + dy;
+    let newLeft = this.origX + dx;
+    let newTop = this.origY + dy;
 
-    circle.style.left = newLeft + 'px';
-    circle.style.top = newTop + 'px';
+    newLeft = Math.min(Math.max(0, newLeft), window.innerWidth - circleDiameter);
+    newTop = Math.min(Math.max(0, newTop), window.innerHeight - circleDiameter);
 
-    velocityX = clientX - lastX;
-    velocityY = clientY - lastY;
-    lastX = clientX;
-    lastY = clientY;
+    this.posX = newLeft;
+    this.posY = newTop;
+
+    this.elem.style.left = newLeft + 'px';
+    this.elem.style.top = newTop + 'px';
+
+    this.velocityX = clientX - this.lastX;
+    this.velocityY = clientY - this.lastY;
+    this.lastX = clientX;
+    this.lastY = clientY;
+
+    this.handleCollisionWhileDragging();
   }
 
-  function dragEnd(e) {
-    if (!isDragging) return;
-    isDragging = false;
-    circle.classList.remove('active');
+  handleCollisionWhileDragging() {
+    for (let other of circleObjs) {
+      if (other === this) continue;
+      if (other.isDragging) continue;
 
-    window.removeEventListener('mousemove', dragging);
-    window.removeEventListener('mouseup', dragEnd);
-    window.removeEventListener('touchmove', dragging);
-    window.removeEventListener('touchend', dragEnd);
+      const dx = (this.posX + circleDiameter/2) - (other.posX + circleDiameter/2);
+      const dy = (this.posY + circleDiameter/2) - (other.posY + circleDiameter/2);
+      const dist = Math.sqrt(dx*dx + dy*dy);
 
-    bounce(velocityX, velocityY);
-  }
+      if (dist < circleDiameter) {
+        const nx = dx / dist;
+        const ny = dy / dist;
 
-  function bounce(vx, vy) {
-    let posX = parseFloat(circle.style.left);
-    let posY = parseFloat(circle.style.top);
+        const velAlongNormal = this.velocityX * nx + this.velocityY * ny;
 
-    let velocityX = vx * 5;
-    let velocityY = vy * 5;
+        if (velAlongNormal < 0) {
+          this.velocityX = this.velocityX - 2 * velAlongNormal * nx;
+          this.velocityY = this.velocityY - 2 * velAlongNormal * ny;
 
-    const damping = 0.9;
-    const orbitRadius = 15;
-    const circleDiameter = 150;
+          const overlap = circleDiameter - dist;
+          this.posX += nx * overlap;
+          this.posY += ny * overlap;
 
-    function animate() {
-      const minX = 0;
-      const minY = 0;
-      const maxX = window.innerWidth - circleDiameter;
-      const maxY = window.innerHeight - circleDiameter;
-
-      posX += velocityX;
-      posY += velocityY;
-
-      if (posX < minX) {
-        posX = minX;
-        velocityX = -velocityX * damping;
-      } else if (posX > maxX) {
-        posX = maxX;
-        velocityX = -velocityX * damping;
-      }
-      if (posY < minY) {
-        posY = minY;
-        velocityY = -velocityY * damping;
-      } else if (posY > maxY) {
-        posY = maxY;
-        velocityY = -velocityY * damping;
-      }
-
-      velocityX *= damping;
-      velocityY *= damping;
-
-      const orbitAngle = performance.now() * 0.005;
-      const orbitOffsetX = orbitRadius * Math.cos(orbitAngle);
-      const orbitOffsetY = orbitRadius * Math.sin(orbitAngle);
-
-      circle.style.left = (posX + orbitOffsetX) + 'px';
-      circle.style.top = (posY + orbitOffsetY) + 'px';
-
-      if (Math.abs(velocityX) > 0.1 || Math.abs(velocityY) > 0.1) {
-        animationFrame = requestAnimationFrame(animate);
-      } else {
-        basePos.x = posX;
-        basePos.y = posY;
-        startOrbit();
+          this.elem.style.left = this.posX + 'px';
+          this.elem.style.top = this.posY + 'px';
+        }
       }
     }
+  }
+
+  dragEnd(e) {
+    if (!this.isDragging) return;
+    this.isDragging = false;
+    this.elem.classList.remove('active');
+
+    window.removeEventListener('mousemove', this._draggingHandler);
+    window.removeEventListener('mouseup', this._dragEndHandler);
+    window.removeEventListener('touchmove', this._draggingHandler);
+    window.removeEventListener('touchend', this._dragEndHandler);
+
+    this.bounce(this.velocityX * 1.5, this.velocityY * 1.5);
+  }
+
+  bounce(vx, vy) {
+    if (this.animFrame) {
+      cancelAnimationFrame(this.animFrame);
+    }
+
+    this.velocityX = vx;
+    this.velocityY = vy;
+
+    this.hasSpawnedThisBounce = false;
+
+    const damping = 0.9;
+
+    const animate = () => {
+      if (this.isDragging) {
+        cancelAnimationFrame(this.animFrame);
+        this.animFrame = null;
+        return;
+      }
+
+      this.posX += this.velocityX;
+      this.posY += this.velocityY;
+
+      if (this.posX < 0) {
+        this.posX = 0;
+        this.velocityX = -this.velocityX * damping;
+      } else if (this.posX > window.innerWidth - circleDiameter) {
+        this.posX = window.innerWidth - circleDiameter;
+        this.velocityX = -this.velocityX * damping;
+      }
+      if (this.posY < 0) {
+        this.posY = 0;
+        this.velocityY = -this.velocityY * damping;
+      } else if (this.posY > window.innerHeight - circleDiameter) {
+        this.posY = window.innerHeight - circleDiameter;
+        this.velocityY = -this.velocityY * damping;
+      }
+
+      this.handleCollisionWhileBouncing();
+
+      this.velocityX *= damping;
+      this.velocityY *= damping;
+
+      this.elem.style.left = this.posX + 'px';
+      this.elem.style.top = this.posY + 'px';
+
+      if (Math.abs(this.velocityX) > 0.1 || Math.abs(this.velocityY) > 0.1) {
+        this.animFrame = requestAnimationFrame(animate);
+      } else {
+        this.basePos.x = this.posX;
+        this.basePos.y = this.posY;
+        this.animFrame = null;
+        this.startOrbit();
+      }
+    };
 
     animate();
   }
 
-  function startOrbit() {
-    let time = 0;
-    const orbitRadius = 15;
-    const phaseOffset = (Math.PI / 2) * index;
+  handleCollisionWhileBouncing() {
+    for (let other of circleObjs) {
+      if (other === this) continue;
+      if (other.isDragging) continue;
 
-    if (animationFrame) {
-      cancelAnimationFrame(animationFrame);
-    }
+      const dx = (this.posX + circleDiameter/2) - (other.posX + circleDiameter/2);
+      const dy = (this.posY + circleDiameter/2) - (other.posY + circleDiameter/2);
+      const dist = Math.sqrt(dx*dx + dy*dy);
 
-    animationFrame = requestAnimationFrame(function orbitAnim() {
-      if (isDragging) {
-        animationFrame = requestAnimationFrame(orbitAnim);
-        return;
+      if (dist < circleDiameter) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+
+        const velAlongNormal = this.velocityX * nx + this.velocityY * ny;
+
+        if (velAlongNormal < 0) {
+          this.velocityX = this.velocityX - 2 * velAlongNormal * nx;
+          this.velocityY = this.velocityY - 2 * velAlongNormal * ny;
+
+          const overlap = circleDiameter - dist;
+          this.posX += nx * overlap;
+          this.posY += ny * overlap;
+
+          if (!this.hasSpawnedThisBounce) {
+            this.hasSpawnedThisBounce = true;
+            spawnAround(this);
+          }
+        }
       }
-      const orbitAngle = time * 0.05 + phaseOffset;
-      const orbitOffsetX = orbitRadius * Math.cos(orbitAngle);
-      const orbitOffsetY = orbitRadius * Math.sin(orbitAngle);
-      circle.style.left = (basePos.x + orbitOffsetX) + 'px';
-      circle.style.top = (basePos.y + orbitOffsetY) + 'px';
-      time++;
-      animationFrame = requestAnimationFrame(orbitAnim);
-    });
+    }
   }
 
-  startOrbit();
+  startOrbit() {
+    if (this.animFrame) {
+      cancelAnimationFrame(this.animFrame);
+      this.animFrame = null;
+    }
+    this.orbitTime = 0;
+    const orbitRadius = 15;
+    const phaseOffset = (Math.PI / 2) * this.index;
 
-});
+    const orbitAnim = () => {
+      if (this.isDragging) {
+        this.animFrame = requestAnimationFrame(orbitAnim);
+        return;
+      }
+      const orbitAngle = this.orbitTime * 0.05 + phaseOffset;
+      const orbitOffsetX = orbitRadius * Math.cos(orbitAngle);
+      const orbitOffsetY = orbitRadius * Math.sin(orbitAngle);
+      this.elem.style.left = (this.basePos.x + orbitOffsetX) + 'px';
+      this.elem.style.top = (this.basePos.y + orbitOffsetY) + 'px';
+      this.orbitTime++;
+      this.animFrame = requestAnimationFrame(orbitAnim);
+    };
+
+    orbitAnim();
+  }
+}
+
+const circleObjs = circles.map((elem, idx) => new Circle(elem, idx));
 </script>
 
 </body>
